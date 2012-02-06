@@ -26,15 +26,19 @@ set -e
 # files, It will be passed arguments specifying the name and arguments of the
 # command it should exec() in turn.
 
+if [ ! "$SC_ARGV0" ]; then
+	SC_ARGV0="$0"
+fi
+
 if [ "$SC_SUBLEVEL" ]; then
-	SC_NAME="$SC_NAME ${0##*/}"
+	SC_NAME="$SC_NAME ${SC_ARGV0##*/}"
 	# If we're a sub-invocation, inherit SC_MAIN, append ourselves to SC_NAME,
 	# don't do context discovery, don't bounce through the rcfile or the
 	# contextfile.
 	sc_rcfile=
 	sc_contextfile=
 else
-	SC_MAIN="${0##*/}"
+	SC_MAIN="${SC_ARGV0##*/}"
 	SC_NAME="$SC_MAIN"
 	sc_rcfile="$HOME/.${SC_MAIN}rc"
 fi
@@ -57,6 +61,14 @@ if [ "$SC_MAIN" = "subcommander" -o "$SC_MAIN" = "subcommander.sh" ]; then
 		Error: Subcommander is an abstraction that is not meant to be run under
 		its own name. Instead, create a symlink to it, with a different name.
 		And read the instructions.
+
+		If you absolutely can't use symlinks, you may instead employ a script
+		or executable that sets 'SC_ARGV0' in the environment before 'exec'ing
+		the subcommander script, like so:
+
+		    #!/bin/sh
+
+		    SC_ARGV0="\$0" exec /path/to/subcommander.sh "\$@"
 	EOF
 fi
 
@@ -66,7 +78,7 @@ if [ ! "$SC_IGNORE_RCFILE" ]; then
 	# Set a flag to avoid doing this again.
 	export SC_IGNORE_RCFILE=1
 	if [ -x "$sc_rcfile" ]; then
-		exec "$sc_rcfile" "$0" "$@"
+		SC_ARGV0="" exec "$sc_rcfile" "$SC_ARGV0" "$@"
 	elif [ -e "$sc_rcfile" ]; then
 		# TODO FIXME create a trampoline that will source non-executable
 		# key/value pairs
@@ -81,7 +93,7 @@ fi
 # context but will accept their own exec_path. For example a sub-subcommander
 # under 'mytool' called 'db' would examine MYTOOL_DB_EXEC_PATH
 ctx_envname="`echo $SC_MAIN|tr 'a-z ' 'A-Z_'`_CONTEXT"
-eval "exec_path=\${`echo $SC_NAME|tr 'a-z ' 'A-Z_'`_EXEC_PATH:='$0.d'}"
+eval "exec_path=\${`echo $SC_NAME|tr 'a-z ' 'A-Z_'`_EXEC_PATH:='$SC_ARGV0.d'}"
 
 if [ ! -d "$exec_path" ]; then
 	abort <<-END
@@ -216,5 +228,6 @@ fi
 
 # This is redundant, but serves to be a very explicit reminder of what
 # variables are available in the environment.
+unset SC_ARGV0
 export SC_MAIN SC_NAME SC_CONTEXT SC_SUBLEVEL
 exec $contextfile "$subcommand" "$@"
